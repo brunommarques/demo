@@ -1,17 +1,24 @@
 package com.mastercard.example.demo.rest;
 
 import com.mastercard.example.demo.constants.AddressType;
+import com.mastercard.example.demo.entities.Address;
+import com.mastercard.example.demo.entities.Consumer;
+import com.mastercard.example.demo.entities.ConsumerAddress;
+import com.mastercard.example.demo.entities.ConsumerAddressId;
 import com.mastercard.example.demo.exceptions.AddressNotFoundException;
 import com.mastercard.example.demo.exceptions.ConsumerAlreadyHasThisAddressForThisTypeException;
 import com.mastercard.example.demo.exceptions.ConsumerNotFoundException;
-import com.mastercard.example.demo.repositories.*;
-import com.mastercard.example.demo.entities.*;
+import com.mastercard.example.demo.repositories.AddressRepository;
+import com.mastercard.example.demo.repositories.ConsumerAddressRepository;
+import com.mastercard.example.demo.repositories.ConsumerRepository;
 import org.springframework.http.MediaType;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 public class ConsumerController {
@@ -19,7 +26,11 @@ public class ConsumerController {
     AddressRepository addressRepository;
     ConsumerAddressRepository consumerAddressRepository;
 
-    public ConsumerController() {
+    public ConsumerController(ConsumerRepository consumerRepository, AddressRepository addressRepository, ConsumerAddressRepository consumerAddressRepository) {
+        this.consumerRepository = consumerRepository;
+        this.addressRepository = addressRepository;
+        this.consumerAddressRepository = consumerAddressRepository;
+
     }
 
     @GetMapping("/Consumers")
@@ -31,17 +42,51 @@ public class ConsumerController {
     @PostMapping(value = "/Consumers", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     Consumer newConsumer(@RequestBody Consumer newConsumer) {
         return consumerRepository.save(newConsumer);
+
     }
 
     // Single item
     @GetMapping("/Consumers/{id}")
     Consumer one(@PathVariable Integer id) {
-
         return consumerRepository.findById(id)
                 .orElseThrow(() -> new ConsumerNotFoundException(id));
     }
 
-    @PutMapping("/Consumers/{id}")
+    @GetMapping("/Consumers/{id}/BillingAddresses")
+    List<Address> getBillingAddresses(@PathVariable Integer id) {
+        List<ConsumerAddress> consumerAddressList = consumerRepository.findById(id).map(consumer -> {
+                    return consumer.getConsumerAddresses().stream().filter(
+                                    ca -> ca.getId().getAddressTypeId() == AddressType.BILLING.ordinal())
+                            .collect(Collectors.toList());
+                })
+                .orElseThrow(() -> new ConsumerNotFoundException(id));
+
+        List<Address> billingAddresses = new ArrayList<>();
+
+        consumerAddressList.forEach(addr -> billingAddresses.add(addr.getAddress()));
+
+        return billingAddresses;
+
+    }
+
+    @GetMapping("/Consumers/{id}/ShippingAddresses")
+    List<Address> getShippingAddresses(@PathVariable Integer id) {
+        List<ConsumerAddress> consumerAddressList = consumerRepository.findById(id).map(consumer -> {
+                    return consumer.getConsumerAddresses().stream().filter(
+                                    ca -> ca.getId().getAddressTypeId() == AddressType.SHIPPING.ordinal())
+                            .collect(Collectors.toList());
+                })
+                .orElseThrow(() -> new ConsumerNotFoundException(id));
+
+        List<Address> shippingAddresses = new ArrayList<>();
+
+        consumerAddressList.forEach(addr -> shippingAddresses.add(addr.getAddress()));
+
+        return shippingAddresses;
+
+    }
+
+    @PutMapping(value = "/Consumers/{id}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     Consumer replaceConsumer(@RequestBody Consumer newConsumer, @PathVariable Integer id) {
         return consumerRepository.findById(id)
                 .map(Consumer -> {
@@ -114,9 +159,12 @@ public class ConsumerController {
                         newConsumerAddressId.setConsumerId(consumerId);
                         newConsumerAddressId.setAddressId(addressIdToAssociate);
                         newConsumerAddressId.setAddressTypeId(addressTypeId);
+                        newConsumerAddress.setId(newConsumerAddressId);
+                        consumer.getConsumerAddresses().add(newConsumerAddress);
+                        newConsumerAddress.setConsumer(consumer);
+                        newConsumerAddress.setAddress(addressRepository.getReferenceById(addressIdToAssociate));
                         consumerAddressRepository.save(newConsumerAddress);
                         consumerAddressRepository.flush();
-                        consumer.getConsumerAddresses().add(newConsumerAddress);
                     } else {
                         throw new ConsumerAlreadyHasThisAddressForThisTypeException(newAddressForConsumer.getId());
                     }

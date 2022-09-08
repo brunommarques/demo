@@ -1,5 +1,9 @@
 package com.mastercard.example.demo.entities;
 
+import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import lombok.*;
 
 import javax.persistence.*;
@@ -13,7 +17,9 @@ import java.util.Set;
 @Setter
 @ToString(onlyExplicitlyIncluded = true)
 @Entity
+@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
 @Table(name = "ADDRESS")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Address {
     private Integer id;
 
@@ -28,11 +34,13 @@ public class Address {
     private Set<ConsumerAddress> consumerAddresses = new LinkedHashSet<>();
 
     @OneToMany(mappedBy = "address")
+    @JsonIgnore
     public Set<ConsumerAddress> getConsumerAddresses() {
         return consumerAddresses;
     }
 
     @Id
+    @GeneratedValue
     @Column(name = "ID", nullable = false)
     public Integer getId() {
         return id;
